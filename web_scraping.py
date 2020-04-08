@@ -7,7 +7,7 @@ scraping online articles from realpython.com
 - [x] get articles from all pages of tag
 - [x] refactoring
 - [x] extract full title of tags
-- [ ] save tags into text file (markdown)
+- [x] save tags in text file (markdown)
 - [ ] save articles in text file (markdown)
 - [ ] create one list with titles of all articles (+tags, + public date)
 """
@@ -57,13 +57,13 @@ class Article:
         self.tags = {tag.string: tag.attrs['href'] for tag in tags}
 
     def __str__(self):
-        full_title = (f"# {self.heading}\n*{self.date}* || {self.url}"
+        full_title = (f"[{self.heading}]({self.url})\n*{self.date}* | "
                       if self.date
-                      else f"# {self.heading}\n{self.url}")
-        tags_string = (' '.join([f"@{tag}" for tag in self.tags])
+                      else f"[{self.heading}]({self.url})\n")
+        tags_string = (' '.join([f"`{tag}`" for tag in self.tags])
                        if self.tags
                        else "")
-        return '\n\n'.join([full_title, tags_string, ""])
+        return ''.join([full_title, tags_string, "\n\n"])
 
     def __repr__(self):
         return (f"Article(heading='{self.heading}'"
@@ -122,9 +122,8 @@ class Tag:
         self.urls: set = {url, }
 
     def __str__(self):
-        return (f"[{self.heading}]({self.main_url})"
-                if self.heading
-                else f"[@{self.topic}]({self.main_url})")
+        return (f"[{self.heading if self.heading else self.topic}]"
+                f"({self.main_url})")
 
     def __hash__(self):
         return hash(self.main_url)
@@ -165,10 +164,20 @@ def get_all_tags(website_url: str) -> Set[Tag]:
     return tags
 
 
+def write_tag_to_file(tag: Tag, file: str = 'README.md') -> None:
+    with open(file, 'r') as fr:
+        text: str = fr.read()
+        if text.find(tag.main_url) == -1:
+            text = '\n\n'.join((text, f"# {tag}"))
+            with open(file, 'w') as fw:
+                fw.write(text)
+
+
 def main(url=URL) -> None:
     all_articles: set = set()
     for tag in get_all_tags(url):
         all_articles.update(tag.get_all_articles())
+        write_tag_to_file(tag)
     for article in all_articles:
         print(article)
 
