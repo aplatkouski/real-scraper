@@ -4,13 +4,14 @@ scraping online articles from realpython.com
 
 - [x] get all tags (badges) from main page of the site
 - [x] Open main page of each tag and get links of pages
-- [ ] get articles from all pages of tag
-- [ ] save articles in  text file (markdown)
+- [x] get articles from all pages of tag
+- [ ] refactoring
+- [ ] save articles in text file (markdown)
 - [ ] create one list with titles of all articles (+tags, + public date)
 """
 
+from typing import Set, List
 from urllib.parse import urljoin
-from typing import Set
 
 import requests
 from bs4 import BeautifulSoup
@@ -35,7 +36,7 @@ class Article:
         self.date: str = date
         self.tags: dict = dict()
         for tag in tags:
-            self.tags[tag.text] = tag.attrs['href']
+            self.tags[tag.string] = tag.attrs['href']
 
     def __str__(self):
         result = (f"\n# {self.heading}\n"
@@ -59,22 +60,24 @@ class Tag:
         return result
 
 
-def get_main_page_articles(url):
+def get_articles(url: str) -> List[Article]:
     src: bytes = get_page(url)
     soup: BeautifulSoup = BeautifulSoup(src, features='html.parser')
     articles = soup.find_all(name='div', attrs={'class': 'card border-0'})
-    topics_list = list()
+    articles_list = list()
     for article in articles:
-        title = article.find(name='h2', attrs={'class': 'card-title'}).text
+        title = article.find(name='h2', attrs={'class': 'card-title'}).string
         href = urljoin(url, article.a['href'])
-        date = article.find(name='span', attrs={'class': ['mr-2']}).text
+        try:
+            date = article.find(name='span', attrs={'class': ['mr-2']}).string
+        except AttributeError:
+            date = ""
         badges = article.find_all(name='a',
                                   attrs={'class': 'badge'},
                                   href=True)
-        topics_list.append(Article(heading=title, url=href,
-                                   date=date, tags=badges))
-    for article in topics_list:
-        print(article)
+        articles_list.append(Article(heading=title, url=href,
+                                     date=date, tags=badges))
+    return articles_list
 
 
 def get_all_tutorial_tags(url: str) -> Set[Tag]:
@@ -88,7 +91,7 @@ def get_all_tutorial_tags(url: str) -> Set[Tag]:
                                   attrs={"class": "badge"},
                                   href=True)
         for badge in badges:
-            tags.add(Tag(topic=badge.text,
+            tags.add(Tag(topic=badge.string,
                          url=urljoin(url, badge['href'])))
     return tags
 
@@ -104,11 +107,21 @@ def get_all_page_links_of_tags(url: str, tags: Set[Tag]):
             tag.urls.add(urljoin(url, page_link_element['href']))
 
 
+def get_all_articles_list(tags: Set[Tag]) -> List[Article]:
+    all_articles: list = list()
+    for tag in tags:
+        all_articles.extend(get_articles(tag.main_url))
+        for url in tag.urls:
+            all_articles.extend(get_articles(tag.main_url))
+    return all_articles
+
+
 def main(url=URL) -> None:
     tags = get_all_tutorial_tags(url)
     get_all_page_links_of_tags(url, tags)
-    for tag in tags:
-        print(tag)
+    all_articles = get_all_articles_list(tags)
+    for article in all_articles:
+        print(article)
 
 
 if __name__ == '__main__':
