@@ -6,6 +6,8 @@ scraping online articles from realpython.com
 - [x] Open main page of each tag and get links of pages
 - [x] get articles from all pages of tag
 - [x] refactoring
+- [x] extract full title of tags
+- [ ] save tags into text file (markdown)
 - [ ] save articles in text file (markdown)
 - [ ] create one list with titles of all articles (+tags, + public date)
 """
@@ -115,12 +117,14 @@ class Tag:
 
     def __init__(self, topic: str, url: str):
         self.topic: str = topic
-        self.main_url = url
+        self.heading: str = ""
+        self.main_url: str = url
         self.urls: set = {url, }
 
     def __str__(self):
-        urls_string = '\n\t'.join([url for url in self.urls])
-        return f"@{self.topic}\n{urls_string}"
+        return (f"[{self.heading}]({self.main_url})"
+                if self.heading
+                else f"[@{self.topic}]({self.main_url})")
 
     def __hash__(self):
         return hash(self.main_url)
@@ -134,9 +138,9 @@ class Tag:
                     self.main_url == other.main_url)
 
     def find_and_save_all_urls(self, website_url: str) -> None:
-        soap: BeautifulSoup = get_page(self.main_url)
+        soup: BeautifulSoup = get_page(self.main_url)
         all_urls = [urljoin(website_url, page_link['href'])
-                    for page_link in soap.find_all(**Tag.page_link_param)]
+                    for page_link in soup.find_all(**Tag.page_link_param)]
         self.urls.update(all_urls)
 
     def get_all_articles(self) -> Set[Article]:
@@ -145,6 +149,9 @@ class Tag:
             all_articles.update(get_articles(url))
         return all_articles
 
+    def get_heading(self):
+        self.heading = get_page(self.main_url).h1.string
+
 
 def get_all_tags(website_url: str) -> Set[Tag]:
     tags: set = set()
@@ -152,6 +159,7 @@ def get_all_tags(website_url: str) -> Set[Tag]:
         for badge in sidebar.find_all(**Tag.badges_param):
             tag = Tag(topic=badge.string,
                       url=urljoin(website_url, badge['href']))
+            tag.get_heading()
             tag.find_and_save_all_urls(website_url)
             tags.add(tag)
     return tags
