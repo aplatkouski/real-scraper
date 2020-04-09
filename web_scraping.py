@@ -1,4 +1,4 @@
-#!./.venv/bin/python
+#!/usr/bin/env python
 
 from typing import Set
 from urllib.parse import urljoin, urlparse
@@ -80,14 +80,14 @@ class Article:
                        if self.tags else "")
         return ''.join([title, date_string, tags_string])
 
-    def write_to_file(self, file: str = 'README.md') -> None:
+    def write_to_file(self, file: str = 'README.md', force: bool = True) -> None:
         """
         Record info about article in file (as markdown task '[ ]')
 
         If file has article-link no data will be recorded.
         Else the article will be recorded only once
         under an appropriate tag heading in the end of the file.
-        Because last tag headings have higher priority than opening tag.
+        Hence, last tag headings have higher priority than opening tag.
 
         If tag heading isn't found, add record in the end of the file
         """
@@ -104,11 +104,13 @@ class Article:
                     with open(file, 'w') as fw:
                         fw.write('\n\n'.join(text_list))
                     return
-            text = '\n\n'.join((text,
-                                '# New article(-s)',
-                                f"{self.str_markdown(as_task=True)}"))
-            with open(file, 'w') as fw:
-                fw.write(text)
+            # if tags from article don't found in file and `force=True`
+            if force:
+                text = '\n\n'.join((text,
+                                    '# New article(-s)',
+                                    f"{self.str_markdown(as_task=True)}"))
+                with open(file, 'w') as fw:
+                    fw.write(text)
 
 
 def get_articles(url: str) -> Set[Article]:
@@ -156,8 +158,8 @@ class Tag:
         self.heading: str = ""
         self.main_url: str = url
         self.urls: set = {url, }
-        self.get_heading()
-        self.find_and_save_all_urls()
+        self._extract_heading()
+        self._extract_all_urls()
 
     def __str__(self):
         return (f"[{self.heading if self.heading else self.topic}]"
@@ -174,7 +176,10 @@ class Tag:
         return not (self.__class__ == other.__class__ and
                     self.main_url == other.main_url)
 
-    def find_and_save_all_urls(self) -> None:
+    def _extract_heading(self):
+        self.heading = get_page(self.main_url).h1.string
+
+    def _extract_all_urls(self) -> None:
         """
         Save the url of all pages with articles
         """
@@ -189,9 +194,6 @@ class Tag:
         for url in self.urls:
             all_articles.update(get_articles(url))
         return all_articles
-
-    def get_heading(self):
-        self.heading = get_page(self.main_url).h1.string
 
     def write_to_file(self, file: str = 'README.md') -> None:
         """
