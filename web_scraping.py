@@ -8,8 +8,8 @@ scraping online articles from realpython.com
 - [x] refactoring
 - [x] extract full title of tags
 - [x] save tags in text file (markdown)
-- [ ] save articles in text file (markdown)
-- [ ] create one list with titles of all articles (+tags, + public date)
+- [x] save articles in text file (markdown)
+- [x] create one list with titles of all articles (+tags, + public date)
 """
 
 from typing import Set
@@ -41,29 +41,26 @@ class Article:
     date_param = {'name': 'span', 'attrs': {'class': ['mr-2']}}
     _instances = dict()
 
-    def __new__(cls, heading: str, url: str,
-                date: str = None, tags: list = None):
+    def __new__(cls, heading: str, url: str, tags: set, date: str = None):
         hash_ = hash(url)
         if hash_ not in Article._instances:
             Article._instances[hash_] = super(Article, cls).__new__(cls)
         return Article._instances[hash_]
 
-    def __init__(self, heading: str, url: str,
-                 date: str = None, tags: list = None):
+    def __init__(self, heading: str, url: str, tags: set, date: str = None):
         self.heading: str = heading
         self.url: str = url
         self.date: str = date
-        self.tags: dict = dict()
-        self.tags = {tag.string: tag.attrs['href'] for tag in tags}
+        self.tags: set = tags
 
     def __str__(self):
         full_title = (f"[{self.heading}]({self.url})\n*{self.date}* | "
                       if self.date
                       else f"[{self.heading}]({self.url})\n")
-        tags_string = (' '.join([f"`{tag}`" for tag in self.tags])
+        tags_string = (' '.join([f"`{tag.topic}`" for tag in self.tags])
                        if self.tags
                        else "")
-        return ''.join([full_title, tags_string, "\n\n"])
+        return ''.join([full_title, tags_string])
 
     def __repr__(self):
         return (f"Article(heading='{self.heading}'"
@@ -82,19 +79,39 @@ class Article:
         return not (self.__class__ == other.__class__ and
                     self.url == other.url)
 
+    def write_to_file(self, file: str = 'README.md') -> None:
+        with open(file, 'r') as fr:
+            text: str = fr.read()
+        if text.find(self.url) == -1:
+            text_list = text.split('\n\n')
+            for n in reversed(range(len(text_list.copy()))):
+                if any([text_list[n].find(tag.main_url) != - 1
+                        for tag in self.tags]):
+                    text_list = text_list[:n + 1] + [f" - [ ] {self}", ] + text_list[n + 1:]
+                    with open(file, 'w') as fw:
+                        fw.write('\n\n'.join(text_list))
+                    return
+            text = '\n\n'.join((text, '# New article(-s)', f" - [ ] {self}"))
+            with open(file, 'w') as fw:
+                fw.write(text)
+
 
 def get_articles(url: str) -> Set[Article]:
     articles = set()
+    website_url = '://'.join(urlparse(url)[:2])
     for card in get_page(url).find_all(**Article.card_param):
         title: str = card.find(**Article.title_param).string
-        href: str = urljoin('://'.join(urlparse(url)[:2]), card.a['href'])
+        href: str = urljoin(website_url, card.a['href'])
         try:
             date: str = card.find(**Article.date_param).string
         except AttributeError:
             date: str = ""
-        badges = card.find_all(**Tag.badges_param)
-        articles.add(Article(heading=title, url=href,
-                             date=date, tags=badges))
+        tags: set = set()
+        for badge in card.find_all(**Tag.badges_param):
+            tag = Tag(topic=badge.string,
+                      url=urljoin(website_url, badge['href']))
+            tags.add(tag)
+        articles.add(Article(heading=title, url=href, tags=tags, date=date))
     return articles
 
 
@@ -120,6 +137,8 @@ class Tag:
         self.heading: str = ""
         self.main_url: str = url
         self.urls: set = {url, }
+        self.get_heading()
+        self.find_and_save_all_urls()
 
     def __str__(self):
         return (f"[{self.heading if self.heading else self.topic}]"
@@ -136,8 +155,9 @@ class Tag:
         return not (self.__class__ == other.__class__ and
                     self.main_url == other.main_url)
 
-    def find_and_save_all_urls(self, website_url: str) -> None:
+    def find_and_save_all_urls(self) -> None:
         soup: BeautifulSoup = get_page(self.main_url)
+        website_url = '://'.join(urlparse(self.main_url)[:2])
         all_urls = [urljoin(website_url, page_link['href'])
                     for page_link in soup.find_all(**Tag.page_link_param)]
         self.urls.update(all_urls)
@@ -151,6 +171,14 @@ class Tag:
     def get_heading(self):
         self.heading = get_page(self.main_url).h1.string
 
+    def write_to_file(self, file: str = 'README.md') -> None:
+        with open(file, 'r') as fr:
+            text: str = fr.read()
+        if text.find(self.main_url) == -1:
+            text = '\n\n'.join((text, f"# {self}"))
+            with open(file, 'w') as fw:
+                fw.write(text)
+
 
 def get_all_tags(website_url: str) -> Set[Tag]:
     tags: set = set()
@@ -158,28 +186,17 @@ def get_all_tags(website_url: str) -> Set[Tag]:
         for badge in sidebar.find_all(**Tag.badges_param):
             tag = Tag(topic=badge.string,
                       url=urljoin(website_url, badge['href']))
-            tag.get_heading()
-            tag.find_and_save_all_urls(website_url)
             tags.add(tag)
     return tags
-
-
-def write_tag_to_file(tag: Tag, file: str = 'README.md') -> None:
-    with open(file, 'r') as fr:
-        text: str = fr.read()
-        if text.find(tag.main_url) == -1:
-            text = '\n\n'.join((text, f"# {tag}"))
-            with open(file, 'w') as fw:
-                fw.write(text)
 
 
 def main(url=URL) -> None:
     all_articles: set = set()
     for tag in get_all_tags(url):
         all_articles.update(tag.get_all_articles())
-        write_tag_to_file(tag)
+        tag.write_to_file()
     for article in all_articles:
-        print(article)
+        article.write_to_file()
 
 
 if __name__ == '__main__':
