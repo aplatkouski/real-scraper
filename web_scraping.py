@@ -1,16 +1,4 @@
 #!./.venv/bin/python
-"""
-scraping online articles from realpython.com
-
-- [x] get all tags (badges) from main page of the site
-- [x] Open main page of each tag and get links of pages
-- [x] get articles from all pages of tag
-- [x] refactoring
-- [x] extract full title of tags
-- [x] save tags in text file (markdown)
-- [x] save articles in text file (markdown)
-- [x] create one list with titles of all articles (+tags, + public date)
-"""
 
 from typing import Set
 from urllib.parse import urljoin, urlparse
@@ -23,6 +11,12 @@ _CACHED_CONTENT = dict()
 
 
 def get_page(url: str) -> BeautifulSoup:
+    """
+    Download data on the first request
+
+    Save the downloaded page to the cache on the first request
+    and return data from the cash on subsequent calls
+    """
     if url not in _CACHED_CONTENT:
         result = requests.get(url)
         if result.status_code == 200:
@@ -36,10 +30,11 @@ class Article:
     Class with unique instances
     """
 
+    _instances = dict()
+
     card_param = {'name': 'div', 'attrs': {'class': 'card border-0'}}
     title_param = {'name': 'h2', 'attrs': {'class': 'card-title'}}
     date_param = {'name': 'span', 'attrs': {'class': ['mr-2']}}
-    _instances = dict()
 
     def __new__(cls, heading: str, url: str, tags: set, date: str = None):
         hash_ = hash(url)
@@ -54,13 +49,12 @@ class Article:
         self.tags: set = tags
 
     def __str__(self):
-        full_title = (f"[{self.heading}]({self.url})\n*{self.date}* | "
-                      if self.date
-                      else f"[{self.heading}]({self.url})\n")
+        full_title = f"[{self.heading}]({self.url})\n"
+        date_string = (f"*{self.date}* | " if self.date else "")
         tags_string = (' '.join([f"`{tag.topic}`" for tag in self.tags])
                        if self.tags
                        else "")
-        return ''.join([full_title, tags_string])
+        return ''.join([full_title, date_string, tags_string])
 
     def __repr__(self):
         return (f"Article(heading='{self.heading}'"
@@ -80,11 +74,19 @@ class Article:
                     self.url == other.url)
 
     def write_to_file(self, file: str = 'README.md') -> None:
+        """
+        Record info about article in file (as markdown task '[ ]')
+
+        If file has article-link no data will be recorded.
+        Else the article will be recorded only once
+        under an appropriate tag heading in the end of the file.
+        Because last tag headings have higher priority than opening tag.
+        """
         with open(file, 'r') as fr:
             text: str = fr.read()
         if text.find(self.url) == -1:
-            text_list = text.split('\n\n')
-            for n in reversed(range(len(text_list.copy()))):
+            text_list: list = text.split('\n\n')
+            for n in reversed(range(len(text_list))):
                 if any([text_list[n].find(tag.main_url) != - 1
                         for tag in self.tags]):
                     text_list = text_list[:n + 1] + [f" - [ ] {self}", ] + text_list[n + 1:]
@@ -97,7 +99,10 @@ class Article:
 
 
 def get_articles(url: str) -> Set[Article]:
-    articles = set()
+    """
+    Return set of all articles on the page
+    """
+    articles: set = set()
     website_url = '://'.join(urlparse(url)[:2])
     for card in get_page(url).find_all(**Article.card_param):
         title: str = card.find(**Article.title_param).string
@@ -107,7 +112,7 @@ def get_articles(url: str) -> Set[Article]:
         except AttributeError:
             date: str = ""
         tags: set = set()
-        for badge in card.find_all(**Tag.badges_param):
+        for badge in card.find_all(**Tag.badge_param):
             tag = Tag(topic=badge.string,
                       url=urljoin(website_url, badge['href']))
             tags.add(tag)
@@ -121,8 +126,9 @@ class Tag:
     """
 
     _instances = dict()
+
     sidebar_param = {'name': 'div', 'attrs': {'class': 'sidebar-module'}}
-    badges_param = {'name': 'a', 'attrs': {'class': 'badge'}, 'href': True}
+    badge_param = {'name': 'a', 'attrs': {'class': 'badge'}, 'href': True}
     page_link_param = {'name': 'a', 'attrs': {"class": "page-link"},
                        'href': True}
 
@@ -156,6 +162,9 @@ class Tag:
                     self.main_url == other.main_url)
 
     def find_and_save_all_urls(self) -> None:
+        """
+        Save the url of all pages with articles
+        """
         soup: BeautifulSoup = get_page(self.main_url)
         website_url = '://'.join(urlparse(self.main_url)[:2])
         all_urls = [urljoin(website_url, page_link['href'])
@@ -172,6 +181,11 @@ class Tag:
         self.heading = get_page(self.main_url).h1.string
 
     def write_to_file(self, file: str = 'README.md') -> None:
+        """
+        Record info about tag in file (as markdown heading '^# ')
+
+        If file has tag-link no data will be recorded.
+        """
         with open(file, 'r') as fr:
             text: str = fr.read()
         if text.find(self.main_url) == -1:
@@ -183,7 +197,7 @@ class Tag:
 def get_all_tags(website_url: str) -> Set[Tag]:
     tags: set = set()
     for sidebar in get_page(website_url).find_all(**Tag.sidebar_param):
-        for badge in sidebar.find_all(**Tag.badges_param):
+        for badge in sidebar.find_all(**Tag.badge_param):
             tag = Tag(topic=badge.string,
                       url=urljoin(website_url, badge['href']))
             tags.add(tag)
