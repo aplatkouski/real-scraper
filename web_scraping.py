@@ -49,12 +49,7 @@ class Article:
         self.tags: set = tags
 
     def __str__(self):
-        full_title = f"[{self.heading}]({self.url})\n"
-        date_string = (f"*{self.date}* | " if self.date else "")
-        tags_string = (' '.join([f"`{tag.topic}`" for tag in self.tags])
-                       if self.tags
-                       else "")
-        return ''.join([full_title, date_string, tags_string])
+        return f"[{self.heading}]({self.url})\n"
 
     def __repr__(self):
         return (f"Article(heading='{self.heading}'"
@@ -73,6 +68,18 @@ class Article:
         return not (self.__class__ == other.__class__ and
                     self.url == other.url)
 
+    def str_markdown(self, as_task: bool = False) -> str:
+        prefix: str = ""
+        if as_task:
+            prefix = f" - [ ] "
+        if urlparse(self.url).path.startswith('/courses/'):
+            prefix = f"{prefix}Course: "
+        title = f"{prefix}[{self.heading}]({self.url})\n"
+        date_string = (f"*{self.date}* | " if self.date else "")
+        tags_string = (' '.join([f"`{tag.topic}`" for tag in self.tags])
+                       if self.tags else "")
+        return ''.join([title, date_string, tags_string])
+
     def write_to_file(self, file: str = 'README.md') -> None:
         """
         Record info about article in file (as markdown task '[ ]')
@@ -81,6 +88,8 @@ class Article:
         Else the article will be recorded only once
         under an appropriate tag heading in the end of the file.
         Because last tag headings have higher priority than opening tag.
+
+        If tag heading isn't found, add record in the end of the file
         """
         with open(file, 'r') as fr:
             text: str = fr.read()
@@ -89,11 +98,15 @@ class Article:
             for n in reversed(range(len(text_list))):
                 if any([text_list[n].find(tag.main_url) != - 1
                         for tag in self.tags]):
-                    text_list = text_list[:n + 1] + [f" - [ ] {self}", ] + text_list[n + 1:]
+                    text_list = (text_list[:n + 1] +
+                                 [f"{self.str_markdown(as_task=True)}", ] +
+                                 text_list[n + 1:])
                     with open(file, 'w') as fw:
                         fw.write('\n\n'.join(text_list))
                     return
-            text = '\n\n'.join((text, '# New article(-s)', f" - [ ] {self}"))
+            text = '\n\n'.join((text,
+                                '# New article(-s)',
+                                f"{self.str_markdown(as_task=True)}"))
             with open(file, 'w') as fw:
                 fw.write(text)
 
