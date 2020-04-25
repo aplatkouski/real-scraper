@@ -225,6 +225,9 @@
 
 # [Intermediate Python Tutorials](https://realpython.com/tutorials/intermediate/)
 
+ - [ ] [The Python pickle Module: How to Persist Objects in Python](https://realpython.com/python-pickle-module/)
+`python` `intermediate`
+
  - [ ] [Primer on Python Decorators](https://realpython.com/primer-on-python-decorators/)
 `intermediate` `python`
 
@@ -495,6 +498,12 @@
 
 
 # [Python Best Practices for More Pythonic Code](https://realpython.com/tutorials/best-practices/)
+
+ - [ ] Course: [Python Coding Interviews: Tips & Best Practices](https://realpython.com/courses/python-coding-interviews-tips-best-practices/)
+*Apr 21, 2020* | `best-practices`
+
+ - [ ] Course: [Inheritance and Composition: A Python OOP Guide](https://realpython.com/courses/inheritance-composition-python/)
+*Apr 14, 2020* | `python` `best-practices` `intermediate`
 
  - [ ] [Writing Comments in Python (Guide)](https://realpython.com/python-comments-guide/)
 `best-practices` `python` `basics`
@@ -1186,6 +1195,9 @@
 
 
 # [Python Data Science Tutorials](https://realpython.com/tutorials/data-science/)
+
+ - [ ] [The Pandas DataFrame: Make Working With Data Delightful](https://realpython.com/pandas-dataframe/)
+`data-science` `intermediate`
 
  - [ ] Course: [Pandas DataFrames 101](https://realpython.com/courses/pandas-dataframes-101/)
 `data-science` `basics`
