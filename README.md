@@ -17,6 +17,9 @@
 
 # [Python Basics](https://realpython.com/tutorials/basics/)
 
+ - [ ] [Regular Expressions: Regexes in Python](https://realpython.com/regex-python/)
+`basics` `python`
+
  - [ ] [Introduction to Python 3](https://realpython.com/python-introduction/)
 `python` `basics`
 

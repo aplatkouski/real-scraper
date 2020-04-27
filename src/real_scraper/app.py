@@ -7,14 +7,15 @@ import requests
 from bs4 import BeautifulSoup  # type: ignore
 from requests import Response  # noqa
 
-FilterByClass = Dict[str, Union[str, List[str]]]
-ClassParam = Dict[str, Union[bool, str, FilterByClass]]
+FilterByOneClass = Dict[str, str]
+FilterByMultipleClass = Dict[str, List[str]]
+ClassParam = Dict[str, Union[FilterByOneClass, FilterByMultipleClass, bool, str]]
 
 URL: str = 'https://realpython.com/'
-_cached_content: Dict[str, BeautifulSoup] = dict()
+_cached_content: Dict[str, 'BeautifulSoup'] = dict()
 
 
-def get_page(url: str) -> BeautifulSoup:
+def get_beautifulsoup(url: str) -> BeautifulSoup:
     """
     Download data on the first request
 
@@ -22,12 +23,11 @@ def get_page(url: str) -> BeautifulSoup:
     and return data from the cash on subsequent calls
     """
     if url not in _cached_content:
-        result: Response = requests.get(url)
-        if result.status_code == 200:
-            _cached_content[url] = BeautifulSoup(result.content,
-                                                 features='html.parser')
+        response: Response = requests.request('GET', url, timeout=(3.0, 5.0))
+        if response:
+            _cached_content[url] = BeautifulSoup(response.content, features='lxml')
         else:
-            result.raise_for_status()
+            response.raise_for_status()
     return _cached_content[url]
 
 
@@ -38,22 +38,20 @@ class Article:
 
     _instances: ClassVar[Dict[int, 'Article']] = dict()
 
-    card_param: ClassVar[ClassParam] = {'name': 'div',
-                                        'attrs': {'class': 'card border-0'}}
-    title_param: ClassVar[ClassParam] = {'name': 'h2',
-                                         'attrs': {'class': 'card-title'}}
-    date_param: ClassVar[ClassParam] = {'name': 'span',
-                                        'attrs': {'class': ['mr-2']}}
+    card_param: ClassVar[ClassParam] = {
+        'name': 'div',
+        'attrs': {'class': 'card border-0'},
+    }
+    title_param: ClassVar[ClassParam] = {'name': 'h2', 'attrs': {'class': 'card-title'}}
+    date_param: ClassVar[ClassParam] = {'name': 'span', 'attrs': {'class': ['mr-2']}}
 
-    def __new__(cls, heading: str, url: str, tags: set, date: str = ''
-                ) -> 'Article':
+    def __new__(cls, heading: str, url: str, tags: set, date: str = '') -> 'Article':
         hash_: int = hash(url)
         if hash_ not in Article._instances:
             Article._instances[hash_] = super(Article, cls).__new__(cls)
         return Article._instances[hash_]
 
-    def __init__(self, heading: str, url: str, tags: set, date: str = ''
-                 ) -> None:
+    def __init__(self, heading: str, url: str, tags: set, date: str = '') -> None:
         self.heading: str = heading
         self.url: str = url
         self.date: str = date
@@ -63,21 +61,21 @@ class Article:
         return f"[{self.heading}]({self.url})\n"
 
     def __repr__(self) -> str:
-        return (f"Article(heading='{self.heading}'"
-                f", url='{self.url}'"
-                f", date='{self.date}'"
-                f", tags='{self.tags}')")
+        return (
+            f"Article(heading='{self.heading}'"
+            f", url='{self.url}'"
+            f", date='{self.date}'"
+            f", tags='{self.tags}')"
+        )
 
     def __hash__(self) -> int:
         return hash(self.url)
 
     def __eq__(self, other) -> bool:
-        return (self.__class__ == other.__class__ and
-                self.url == other.url)
+        return self.__class__ == other.__class__ and self.url == other.url
 
     def __ne__(self, other) -> bool:
-        return not (self.__class__ == other.__class__ and
-                    self.url == other.url)
+        return not (self.__class__ == other.__class__ and self.url == other.url)
 
     def str_markdown(self, as_task: bool = False) -> str:
         prefix: str = ""
@@ -87,15 +85,13 @@ class Article:
             prefix = f"{prefix}Course: "
         title: str = f"{prefix}[{self.heading}]({self.url})\n"
         date_string: str = (f"*{self.date}* | " if self.date else "")
-        tags_string: str = (' '.join([f"`{tag.topic}`" for tag in self.tags])
-                            if self.tags else "")
+        tags_string: str = (' '.join([f"`{tag.topic}`" for tag in self.tags]))
         return ''.join([title, date_string, tags_string])
 
     def _is_any_url_of_tags_in_string(self, line: str) -> bool:
-        return any([line.find(tag.main_url) != - 1 for tag in self.tags])
+        return any([line.find(tag.main_url) != -1 for tag in self.tags])
 
-    def write_to_file(self, file: str = 'README.md', force: bool = True
-                      ) -> None:
+    def write_to_file(self, file: str = 'README.md', force: bool = True) -> None:
         """
         Record info about article in file (as Markdown)
 
@@ -112,17 +108,18 @@ class Article:
             list_of_strings: list = text.split('\n\n')
             for n in reversed(range(len(list_of_strings))):
                 if self._is_any_url_of_tags_in_string(list_of_strings[n]):
-                    list_of_strings = (list_of_strings[:n + 1] +
-                                       [f"{self.str_markdown(as_task=True)}", ] +
-                                       list_of_strings[n + 1:])
+                    list_of_strings = (
+                            list_of_strings[:n + 1]
+                            + [f"{self.str_markdown(as_task=True)}", ]
+                            + list_of_strings[n + 1:]
+                    )
                     with open(file, 'w') as fw:
                         fw.write('\n\n'.join(list_of_strings))
                     return
             # if tags from article don't found in file and `force=True`
             if force:
                 with open(file, 'a') as fa:
-                    fa.write("\n\n# New article"
-                             f"\n\n{self.str_markdown(as_task=True)}")
+                    fa.write("\n\n# New article\n\n{self.str_markdown(as_task=True)}")
 
 
 def get_articles(url: str) -> Set[Article]:
@@ -131,18 +128,17 @@ def get_articles(url: str) -> Set[Article]:
     """
     articles: Set[Article] = set()
     website_url: str = '://'.join(urlparse(url)[:2])
-    for card in get_page(url).find_all(**Article.card_param):
-        title: str = card.find(**Article.title_param).string
+    for card in get_beautifulsoup(url).find_all(**Article.card_param):
+        title: str = str(card.find(**Article.title_param).string)
         href: str = urljoin(website_url, card.a['href'])
         try:
-            date: str = card.find(**Article.date_param).string
+            date: str = str(card.find(**Article.date_param).string)
         except AttributeError:
             date = ""
-        tags: Set[Tag] = set()
-        for badge in card.find_all(**Tag.badge_param):
-            tag: Tag = Tag(topic=badge.string,
-                           url=urljoin(website_url, badge['href']))
-            tags.add(tag)
+        tags: Set[Tag] = set(
+            Tag(topic=str(badge.string), url=urljoin(website_url, badge['href']))
+            for badge in card(**Tag.badge_param)
+        )
         articles.add(Article(heading=title, url=href, tags=tags, date=date))
     return articles
 
@@ -154,14 +150,20 @@ class Tag:
 
     _instances: ClassVar[Dict[int, 'Tag']] = dict()
 
-    sidebar_param: ClassVar[ClassParam] = {'name': 'div',
-                                           'attrs': {'class': 'sidebar-module'}}
-    badge_param: ClassVar[ClassParam] = {'name': 'a',
-                                         'attrs': {'class': 'badge'},
-                                         'href': True}
-    page_link_param: ClassVar[ClassParam] = {'name': 'a',
-                                             'attrs': {"class": "page-link"},
-                                             'href': True}
+    sidebar_param: ClassVar[ClassParam] = {
+        'name': 'div',
+        'attrs': {'class': 'sidebar-module'},
+    }
+    badge_param: ClassVar[ClassParam] = {
+        'name': 'a',
+        'attrs': {'class': 'badge'},
+        'href': True,
+    }
+    page_link_param: ClassVar[ClassParam] = {
+        'name': 'a',
+        'attrs': {"class": "page-link"},
+        'href': True,
+    }
 
     def __new__(cls, topic: str, url: str) -> 'Tag':
         hash_: int = hash(url)
@@ -173,36 +175,39 @@ class Tag:
         self.topic: str = topic
         self.heading: str = ""
         self.main_url: str = url
-        self.urls: set = {url, }
+        self.urls: set = {
+            url,
+        }
         self._extract_heading()
         self._extract_all_urls()
 
     def __str__(self) -> str:
-        return (f"[{self.heading if self.heading else self.topic}]"
-                f"({self.main_url})")
+        return f"[{self.heading if self.heading else self.topic}]({self.main_url})"
 
     def __hash__(self) -> int:
         return hash(self.main_url)
 
     def __eq__(self, other) -> bool:
-        return (self.__class__ == other.__class__ and
-                self.main_url == other.main_url)
+        return self.__class__ == other.__class__ and self.main_url == other.main_url
 
     def __ne__(self, other) -> bool:
-        return not (self.__class__ == other.__class__ and
-                    self.main_url == other.main_url)
+        return not (
+                self.__class__ == other.__class__ and self.main_url == other.main_url
+        )
 
     def _extract_heading(self) -> None:
-        self.heading = get_page(self.main_url).h1.string
+        self.heading = str(get_beautifulsoup(self.main_url).h1.string)
 
     def _extract_all_urls(self) -> None:
         """
         Save the url of all pages with articles
         """
-        soup: BeautifulSoup = get_page(self.main_url)
+        soup: BeautifulSoup = get_beautifulsoup(self.main_url)
         website_url: str = '://'.join(urlparse(self.main_url)[:2])
-        all_urls: List[str] = [urljoin(website_url, page_link['href'])
-                               for page_link in soup.find_all(**Tag.page_link_param)]
+        all_urls: List[str] = [
+            urljoin(website_url, page_link['href'])
+            for page_link in soup(**Tag.page_link_param)
+        ]
         self.urls.update(all_urls)
 
     def get_all_articles(self) -> Set[Article]:
@@ -213,7 +218,7 @@ class Tag:
 
     def write_to_file(self, file: str = 'README.md') -> None:
         """
-        Record info about tag in file (as markdown heading '^# ')
+        Write tag in file (as markdown heading '^# ')
 
         If file has tag-link no data will be recorded.
         """
@@ -226,11 +231,14 @@ class Tag:
 
 def get_all_tags(website_url: str) -> Set[Tag]:
     tags: Set[Tag] = set()
-    for sidebar in get_page(website_url).find_all(**Tag.sidebar_param):
-        for badge in sidebar.find_all(**Tag.badge_param):
-            tag: Tag = Tag(topic=badge.string,
-                           url=urljoin(website_url, badge['href']))
-            tags.add(tag)
+    for sidebar in get_beautifulsoup(website_url).find_all(**Tag.sidebar_param):
+        tags.union(
+            set(
+                Tag(topic=str(badge.string), url=urljoin(website_url, badge['href']))
+                for badge in sidebar(**Tag.badge_param)
+            )
+        )
+
     return tags
 
 
