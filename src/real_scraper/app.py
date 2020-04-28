@@ -1,18 +1,17 @@
 #!/usr/bin/env python
 
-from typing import ClassVar, Dict, List, Set, Union
+import os
+from typing import ClassVar, Dict, List, Set, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup  # type: ignore
 from requests import Response  # noqa
 
-FilterByOneClass = Dict[str, str]
-FilterByMultipleClass = Dict[str, List[str]]
-ClassParam = Dict[str, Union[FilterByOneClass, FilterByMultipleClass, bool, str]]
+CssSelector = str
 
 URL: str = 'https://realpython.com/'
-_cached_content: Dict[str, 'BeautifulSoup'] = dict()
+_cached_content: Dict[str, BeautifulSoup] = dict()
 
 
 def get_beautifulsoup(url: str) -> BeautifulSoup:
@@ -38,12 +37,9 @@ class Article:
 
     _instances: ClassVar[Dict[int, 'Article']] = dict()
 
-    card_param: ClassVar[ClassParam] = {
-        'name': 'div',
-        'attrs': {'class': 'card border-0'},
-    }
-    title_param: ClassVar[ClassParam] = {'name': 'h2', 'attrs': {'class': 'card-title'}}
-    date_param: ClassVar[ClassParam] = {'name': 'span', 'attrs': {'class': ['mr-2']}}
+    card_css_selector: ClassVar[CssSelector] = 'div.card.border-0'
+    title_css_selector: ClassVar[CssSelector] = 'h2.card-title'
+    date_css_selector: ClassVar[CssSelector] = 'span.mr-2'
 
     def __new__(cls, heading: str, url: str, tags: set, date: str = '') -> 'Article':
         hash_: int = hash(url)
@@ -85,11 +81,11 @@ class Article:
             prefix = f"{prefix}Course: "
         title: str = f"{prefix}[{self.heading}]({self.url})\n"
         date_string: str = (f"*{self.date}* | " if self.date else "")
-        tags_string: str = (' '.join([f"`{tag.topic}`" for tag in self.tags]))
+        tags_string: str = ' '.join(f"`{tag.topic}`" for tag in self.tags)
         return ''.join([title, date_string, tags_string])
 
     def _is_any_url_of_tags_in_string(self, line: str) -> bool:
-        return any([line.find(tag.main_url) != -1 for tag in self.tags])
+        return any(line.find(tag.main_url) != -1 for tag in self.tags)
 
     def write_to_file(self, file: str = 'README.md', force: bool = True) -> None:
         """
@@ -102,8 +98,7 @@ class Article:
 
         If tag heading isn't found, add record in the end of the file
         """
-        with open(file, 'r') as fr:
-            text: str = fr.read()
+        full_path, text = read_file(file)
         if text.find(self.url) == -1:
             list_of_strings: list = text.split('\n\n')
             for n in reversed(range(len(list_of_strings))):
@@ -113,13 +108,21 @@ class Article:
                             + [f"{self.str_markdown(as_task=True)}", ]
                             + list_of_strings[n + 1:]
                     )
-                    with open(file, 'w') as fw:
+                    with open(full_path, 'w') as fw:
                         fw.write('\n\n'.join(list_of_strings))
                     return
             # if tags from article don't found in file and `force=True`
             if force:
-                with open(file, 'a') as fa:
-                    fa.write("\n\n# New article\n\n{self.str_markdown(as_task=True)}")
+                with open(full_path, 'a') as fa:
+                    fa.write(f"\n\n# New article\n\n{self.str_markdown(as_task=True)}")
+
+
+def read_file(file: str) -> Tuple[str, str]:
+    full_path: str = os.path.join(os.getcwd(), file)
+    if os.path.isfile(full_path):
+        with open(full_path, 'r') as fr:
+            return full_path, fr.read()
+    return full_path, ''
 
 
 def get_articles(url: str) -> Set[Article]:
@@ -128,16 +131,16 @@ def get_articles(url: str) -> Set[Article]:
     """
     articles: Set[Article] = set()
     website_url: str = '://'.join(urlparse(url)[:2])
-    for card in get_beautifulsoup(url).find_all(**Article.card_param):
-        title: str = str(card.find(**Article.title_param).string)
+    for card in get_beautifulsoup(url).select(Article.card_css_selector):
+        title: str = str(card.select_one(Article.title_css_selector).string)
         href: str = urljoin(website_url, card.a['href'])
         try:
-            date: str = str(card.find(**Article.date_param).string)
+            date: str = str(card.select_one(Article.date_css_selector).string)
         except AttributeError:
             date = ""
         tags: Set[Tag] = set(
             Tag(topic=str(badge.string), url=urljoin(website_url, badge['href']))
-            for badge in card(**Tag.badge_param)
+            for badge in card.select(Tag.badge_css_selector)
         )
         articles.add(Article(heading=title, url=href, tags=tags, date=date))
     return articles
@@ -149,21 +152,9 @@ class Tag:
     """
 
     _instances: ClassVar[Dict[int, 'Tag']] = dict()
-
-    sidebar_param: ClassVar[ClassParam] = {
-        'name': 'div',
-        'attrs': {'class': 'sidebar-module'},
-    }
-    badge_param: ClassVar[ClassParam] = {
-        'name': 'a',
-        'attrs': {'class': 'badge'},
-        'href': True,
-    }
-    page_link_param: ClassVar[ClassParam] = {
-        'name': 'a',
-        'attrs': {"class": "page-link"},
-        'href': True,
-    }
+    sidebar_css_selector: ClassVar[CssSelector] = 'div.sidebar-module'
+    badge_css_selector: ClassVar[CssSelector] = 'a.badge[href]'
+    page_link_css_selector: ClassVar[CssSelector] = 'a.page-link[href]'
 
     def __new__(cls, topic: str, url: str) -> 'Tag':
         hash_: int = hash(url)
@@ -175,9 +166,7 @@ class Tag:
         self.topic: str = topic
         self.heading: str = ""
         self.main_url: str = url
-        self.urls: set = {
-            url,
-        }
+        self.urls: set = {url, }
         self._extract_heading()
         self._extract_all_urls()
 
@@ -206,7 +195,7 @@ class Tag:
         website_url: str = '://'.join(urlparse(self.main_url)[:2])
         all_urls: List[str] = [
             urljoin(website_url, page_link['href'])
-            for page_link in soup(**Tag.page_link_param)
+            for page_link in soup.select(Tag.page_link_css_selector)
         ]
         self.urls.update(all_urls)
 
@@ -222,23 +211,21 @@ class Tag:
 
         If file has tag-link no data will be recorded.
         """
-        with open(file, 'r+') as f:
-            text: str = f.read()
-            if text.find(self.main_url) == -1:
-                text = '\n\n'.join((text, f"# {self}"))
-                f.write(text)
+        full_path, text = read_file(file)
+        if text.find(self.main_url) == -1:
+            with open(full_path, 'a') as fa:
+                fa.write(f"\n\n# {self}")
 
 
 def get_all_tags(website_url: str) -> Set[Tag]:
     tags: Set[Tag] = set()
-    for sidebar in get_beautifulsoup(website_url).find_all(**Tag.sidebar_param):
-        tags.union(
+    for sidebar in get_beautifulsoup(website_url).select(Tag.sidebar_css_selector):
+        tags.update(
             set(
                 Tag(topic=str(badge.string), url=urljoin(website_url, badge['href']))
-                for badge in sidebar(**Tag.badge_param)
+                for badge in sidebar.select(Tag.badge_css_selector)
             )
         )
-
     return tags
 
 

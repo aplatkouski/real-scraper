@@ -502,6 +502,9 @@
 
 # [Python Best Practices for More Pythonic Code](https://realpython.com/tutorials/best-practices/)
 
+ - [ ] Course: [Structuring a Python Application](https://realpython.com/courses/structuring-python-application/)
+*Apr 28, 2020* | `best-practices` `python` `basics`
+
  - [ ] Course: [Python Coding Interviews: Tips & Best Practices](https://realpython.com/courses/python-coding-interviews-tips-best-practices/)
 *Apr 21, 2020* | `best-practices`
 
