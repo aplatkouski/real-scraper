@@ -15,7 +15,7 @@ psutil==5.7.0
 pyre-check==0.0.46
 pyre-extensions==0.0.18
 pywatchman==1.4.1
-PyYAML==5.3.1
+PyYAML==5.4
 regex==2020.4.4
 toml==0.10.0
 typed-ast==1.4.1
